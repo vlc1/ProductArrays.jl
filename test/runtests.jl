@@ -1,5 +1,16 @@
 using ProductArrays, Test
-using Adapt, Aqua, JET, StaticArrays, StencilAlgebra
+using Adapt, Aqua, StaticArrays, StencilAlgebra
+import JET
+
+# JET loads stubs on unsupported Julia prereleases, where @test_opt throws;
+# older JET releases have no availability flag
+@static if !isdefined(JET, :JET_AVAILABLE) || JET.JET_AVAILABLE
+    using JET: @test_opt
+else
+    macro test_opt(args...)
+        :(Test.@test_skip $(esc(last(args))))
+    end
+end
 
 struct ToFloat32 end
 Adapt.adapt_storage(::ToFloat32, x::Vector{Float64}) = Float32.(x)
