@@ -1,5 +1,8 @@
 using ProductArrays, Test
-using Aqua, JET, StaticArrays
+using Adapt, Aqua, JET, StaticArrays
+
+struct ToFloat32 end
+Adapt.adapt_storage(::ToFloat32, x::Vector{Float64}) = Float32.(x)
 
 # bytes allocated by f(args...) after a warm-up call, behind a function barrier;
 # the minimum of 3 calls, since a stray allocation can land in one
@@ -42,5 +45,34 @@ end
         xs = ntuple(Returns(1:2), Val(13))
         B = @inferred ProductArray(tuple, xs...)
         @test @inferred(B[ntuple(Returns(2), Val(13))...]) === ntuple(Returns(2), Val(13))
+    end
+
+    @testset "aliasing" begin
+        x, y = [1.0, 2.0, 3.0], [0.0, 1.0]
+        A = ProductArray(+, x, y)
+        @test Base.mightalias(x, A) && Base.mightalias(y, A) && !Base.mightalias(zeros(3), A)
+        # ranges have no buffers
+        R = ProductArray(+, 1:3, 0.0:1.0:1.0)
+        @test Base.dataids(R) === () && allocs(Base.dataids, R) == 0
+        @test @inferred(Base.dataids(A)) == (Base.dataids(x)..., Base.dataids(y)...)
+        C = @inferred Base.unaliascopy(A)
+        @test typeof(C) === typeof(A) && C == A && !Base.mightalias(x, C) && !Base.mightalias(y, C)
+        # reads ahead of the writes: without unaliasing, the result would be [3, 2, 3]
+        z = [1.0, 2.0, 3.0]
+        copyto!(z, ProductArray(identity, view(z, 3:-1:1)))
+        @test z == [3.0, 2.0, 1.0]
+    end
+
+    @testset "Adapt" begin
+        x, y = [1.0, 2.0], [3.0, 4.0, 5.0]
+        A = @inferred adapt(ToFloat32(), ProductArray(+, x, y))
+        @test A isa ProductArray{Float32, 2}
+        @test A.args isa Tuple{Vector{Float32}, Vector{Float32}}
+        @test A == Float32.(x .+ y')
+        P = @inferred adapt(ToFloat32(), ProductArray(SVector, x, y))
+        @test P[2, 3] === SVector(2.0f0, 5.0f0)
+        # ranges pass as they are, isbits
+        X = ProductArray(SVector, 0.0:1.0:1.0, 1:3)
+        @test @inferred(adapt(ToFloat32(), X)) === X && isbits(X)
     end
 end

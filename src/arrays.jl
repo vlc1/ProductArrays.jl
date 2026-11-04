@@ -44,3 +44,9 @@ end
 _coords(::Tuple{}, ::Tuple{}) = ()
 Base.@propagate_inbounds _coords(xs::Tuple, is::Tuple) =
     (first(xs)[first(is)], _coords(Base.tail(xs), Base.tail(is))...)
+
+# the vectors' buffers: the fallback, an objectid, would hide a write to a vector
+Base.dataids(A::ProductArray) = _dataids(A.args)
+_dataids(::Tuple{}) = ()
+_dataids(vs::Tuple) = (Base.dataids(first(vs))..., _dataids(Base.tail(vs))...)
+Base.unaliascopy(A::ProductArray) = typeof(A)(A.fn, map(Base.unaliascopy, A.args))
