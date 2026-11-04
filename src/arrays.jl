@@ -10,6 +10,8 @@ A type in place of `fn` constructs the elements: `ProductArray(SVector, x, y)`
 holds the points themselves, `SVector(x[i], y[j])`, in column-major order. The
 array is `isbits` whenever `fn` and the vectors are (a function without
 captured state, a type, a range), so that it passes to a GPU kernel by value.
+A device without `Float64`, such as Metal, also needs ranges that do not compute
+in it, which excludes `LinRange` and Base's `range`, even with `Float32` ends.
 """
 struct ProductArray{T, N, F, A<:NTuple{N, AbstractVector}} <: AbstractArray{T, N}
     fn::F

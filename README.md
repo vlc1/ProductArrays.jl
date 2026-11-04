@@ -45,6 +45,10 @@ A[2, 3, 4] == 9                     # true
   value. For vectors held in device memory, `using Adapt` loads an extension:
   `adapt(to, A)` adapts `f` and the vectors and recomputes the eltype. Write to
   a device array with `d .= A`: `copyto!(d, A)` falls back on scalar indexing.
+  On a device without `Float64`, such as Metal, `isbits` is not enough, as Base's
+  ranges may compute in `Float64`. `mtl(A)` converts `Float32` `range`s and
+  `Float64` vectors, but not `LinRange` or `Float64` ranges.
+  `StepRangeLen(0f0, h, n)` needs no conversion.
 - **Aliasing.** The array reads its vectors, so writing to one changes the
   array. `Base.mightalias` sees this, and operations that unalias, such as
   `copyto!`, stay correct when the destination is one of the vectors. Ranges
