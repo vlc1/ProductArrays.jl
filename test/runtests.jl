@@ -1,5 +1,5 @@
 using ProductArrays, Test
-using Adapt, Aqua, StaticArrays, StencilAlgebra
+using Adapt, Aqua, JLArrays, StaticArrays, StencilAlgebra
 import JET
 
 # JET loads stubs on unsupported Julia prereleases, where @test_opt throws;
@@ -58,6 +58,26 @@ end
         @test @inferred(B[ntuple(Returns(2), Val(13))...]) === ntuple(Returns(2), Val(13))
     end
 
+    @testset "copyto!" begin
+        x, y = range(0.0, 1.0; length = 3), [0.0, 0.5]
+        A = ProductArray(+, x, y)
+        @test copyto!(zeros(3, 2), A) == [a + b for a in x, b in y]
+        @test allocs(copyto!, zeros(3, 2), A) == 0
+        @test allocs(collect, A) == allocs(a -> Array{eltype(a)}(undef, size(a)), A)
+        @test copyto!(zeros(Float32, 3, 2), A) == Float32[a + b for a in x, b in y]
+        @test (zeros(3, 2) .= A) == collect(A) == [a + b for a in x, b in y]
+        P = ProductArray(SVector, x, y, 1:2)
+        @test collect(P) == [SVector(a, b, c) for a in x, b in y, c in 1:2]
+        # rank 1 and 0
+        @test collect(ProductArray(identity, x)) == x
+        @test copyto!(fill(((),)), ProductArray(() -> ((),)))[] == ((),)
+        # other shapes, as Base: linear order
+        @test copyto!(zeros(6), A) == vec(collect(A))
+        @test copyto!(zeros(7), A)[1:6] == vec(collect(A))
+        @test_throws BoundsError copyto!(zeros(5), A)
+        @test collect(ProductArray(identity, Base.IdentityUnitRange(2:4))) == 2:4
+    end
+
     @testset "aliasing" begin
         x, y = [1.0, 2.0, 3.0], [0.0, 1.0]
         A = ProductArray(+, x, y)
@@ -85,6 +105,25 @@ end
         # ranges pass as they are, isbits
         X = ProductArray(SVector, 0.0:1.0:1.0, 1:3)
         @test @inferred(adapt(ToFloat32(), X)) === X && isbits(X)
+        # the function too: it may capture an array
+        let w = [2.0]
+            C = adapt(ToFloat32(), ProductArray((a, b) -> a + b + w[1], x, y))
+            @test C.fn.w isa Vector{Float32}
+            @test eltype(C) === Float32 && C[1, 1] === 6.0f0
+        end
+    end
+
+    @testset "device path" begin
+        JLArrays.allowscalar(false)
+        x, y = 0.0:0.25:1.0, 0.0:0.5:2.0
+        points = [SVector(a, b) for a in x, b in y]
+        d = JLArray{SVector{2, Float64}}(undef, 5, 5)
+        @test collect(d .= ProductArray(SVector, x, y)) == points
+        @test collect(d .= ProductArray(SVector, JLArray(collect(x)), JLArray(collect(y)))) == points
+        k = JLArray([2.0])
+        s = JLArray{Float64}(undef, 5, 5)
+        @test collect(s .= ProductArray((a, b) -> a + b + k[1], x, y)) == [a + b + 2 for a in x, b in y]
+        JLArrays.allowscalar(true)
     end
 
     @testset "StencilAlgebra" begin

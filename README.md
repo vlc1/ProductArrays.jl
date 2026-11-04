@@ -43,7 +43,8 @@ A[2, 3, 4] == 9                     # true
 - **Devices.** The array is `isbits` when `f` and the vectors are (a function
   without captured state, a type, a range), so it passes to a GPU kernel by
   value. For vectors held in device memory, `using Adapt` loads an extension:
-  `adapt(to, A)` adapts the vectors and recomputes the eltype.
+  `adapt(to, A)` adapts `f` and the vectors and recomputes the eltype. Write to
+  a device array with `d .= A`: `copyto!(d, A)` falls back on scalar indexing.
 - **Aliasing.** The array reads its vectors, so writing to one changes the
   array. `Base.mightalias` sees this, and operations that unalias, such as
   `copyto!`, stay correct when the destination is one of the vectors. Ranges

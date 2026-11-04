@@ -50,3 +50,19 @@ Base.dataids(A::ProductArray) = _dataids(A.args)
 _dataids(::Tuple{}) = ()
 _dataids(vs::Tuple) = (Base.dataids(first(vs))..., _dataids(Base.tail(vs))...)
 Base.unaliascopy(A::ProductArray) = typeof(A)(A.fn, map(Base.unaliascopy, A.args))
+
+# Base's generic loop runs 1.7-2.9x a hand-written one (also behind `collect`, `d .= A`).
+# Array only: wider would be ambiguous with GPUArrays' copyto!
+function Base.copyto!(dest::Array, src::ProductArray)
+    ndims(src) > 0 && axes(dest) == axes(src) ||
+        return invoke(copyto!, Tuple{AbstractArray, AbstractArray}, dest, src)
+    return _sweep!(dest, Base.unalias(dest, src))
+end
+
+@noinline function _sweep!(dest, src)
+    ax = axes(src)
+    @inbounds for It in CartesianIndices(Base.tail(ax)), i in first(ax)
+        dest[i, Tuple(It)...] = src[i, Tuple(It)...]
+    end
+    return dest
+end
