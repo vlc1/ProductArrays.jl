@@ -1,5 +1,5 @@
 using ProductArrays, Test
-using Adapt, Aqua, JET, StaticArrays
+using Adapt, Aqua, JET, StaticArrays, StencilAlgebra
 
 struct ToFloat32 end
 Adapt.adapt_storage(::ToFloat32, x::Vector{Float64}) = Float32.(x)
@@ -74,5 +74,31 @@ end
         # ranges pass as they are, isbits
         X = ProductArray(SVector, 0.0:1.0:1.0, 1:3)
         @test @inferred(adapt(ToFloat32(), X)) === X && isbits(X)
+    end
+
+    @testset "StencilAlgebra" begin
+        x, y = 0.0:0.25:1.0, [0.0, 0.5, 2.0]
+        X = ProductArray(SVector, x, y)
+        extent = ((1:5, 1:3),)
+        points = [SVector(a, b) for a in x, b in y]
+        @field C SVector{2, Float64}
+        A = materialize(Unsplit(C), (C = X,), extent)
+        @test collect(A) == points
+        @test A[2, 3] === SVector(x[2], y[3])
+        out = similar(points)
+        @test allocs(copyto!, out, A) == 0 && out == points
+        # a shift reads the neighbouring point
+        S = materialize(Unsplit(C[ϵ₁]), (C = X,), ((1:4, 1:3),))
+        @test collect(S) == points[2:5, :]
+        # a binding has the declared eltype, and axes from 1
+        @test_throws ArgumentError materialize(Unsplit(C), (C = ProductArray(tuple, x, y),), extent)
+        @field n Int
+        @test_throws ArgumentError materialize(Unsplit(n), (n = ProductArray(identity, Base.IdentityUnitRange(2:4)),), ((2:4,),))
+        # a write to a wrapped vector: without unaliasing, the result would be [1, 1, 1, 1]
+        z = [1.0, 2.0, 3.0, 4.0]
+        @field u
+        B = materialize(Unsplit(u[-ϵ₁]), (u = ProductArray(identity, z),), ((2:4,),))
+        view(z, axes(B)...) .= B
+        @test z == [1.0, 1.0, 2.0, 3.0]
     end
 end

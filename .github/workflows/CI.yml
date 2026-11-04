@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags: ['*']
+  pull_request:
+  schedule:
+    - cron: '0 3 * * 1' # weekly: Julia pre, and a fresh cache for pull requests to restore
+  workflow_dispatch:
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # pull requests test the supported Julia only; pushes, tags, the weekly
+        # schedule and manual runs add the prerelease
+        version: ${{ fromJSON(github.event_name == 'pull_request' && '["1.12"]' || '["1.12", "pre"]') }}
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+    env:
+      JULIA_PKG_USE_CLI_GIT: 'true' # the deploy-key URL rewrites live in git config
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      # the test environment needs StencilAlgebra, through the private registry
+      - uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.VLCREGISTRY_KEY }}
+            ${{ secrets.ALGEBRACORE_KEY }}
+            ${{ secrets.STENCILALGEBRA_KEY }}
+      # after the keys: the cache updates the registries it restores
+      - uses: julia-actions/cache@v3
+      # a fresh clone of VLC: on Julia pre, the cached shallow clone fails to
+      # rebase on origin/main and stays stale
+      - run: rm -rf ~/.julia/registries/VLC
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          localregistry: git@github.com:vlc1/VLCRegistry.git
+          git_cli: true
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          coverage: false # no step uploads it
