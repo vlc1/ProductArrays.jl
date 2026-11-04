@@ -1,16 +1,7 @@
 module ProductArrays
 
-using LinearAlgebra
-using ZippedArrays
-using OnlyArrays
+export ProductArray
 
-import Base: parent, size, axes, getindex
-import LinearAlgebra: diag
-
-export ProductArray, arguments, product
-export CartesianPlane
-
-include("array.jl")
-include("cartesian.jl")
+include("arrays.jl")
 
 end

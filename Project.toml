@@ -1,19 +1,7 @@
 name = "ProductArrays"
 uuid = "47983261-ebc5-4293-86fb-c7fd2acc601e"
 authors = ["Vincent Le Chenadec <vincentlechenadec@gmail.com> and contributors"]
-version = "0.1.4"
-
-[deps]
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-OnlyArrays = "01ce1071-77f6-47e3-8919-4912945f4e12"
-ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
+version = "0.2.0"
 
 [compat]
-ZippedArrays = "0.1"
-julia = "1"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]
+julia = "1.12"
