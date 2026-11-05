@@ -35,6 +35,28 @@ A = ProductArray(+, xs...)
 A[2, 3, 4] == 9                     # true
 ```
 
+The arguments must be vectors. To include a higher-dimensional array, take the
+product over indices and capture the arrays in `f`, inside a function so that
+the eltype is inferred:
+
+```julia
+using ProductArrays, StaticArrays
+
+function extrude(x, y)
+    f(i, j, k) = SVector(x[i], y[j, k])
+    return ProductArray(f, axes(x, 1), axes(y, 1), axes(y, 2))
+end
+
+x, y = rand(10), rand(20, 30)
+A = extrude(x, y)
+A[2, 3, 4] === SVector(x[2], y[3, 4])   # true
+eltype(A) === SVector{2, Float64}       # true
+size(A) == (10, 20, 30)                 # true
+```
+
+Such an array is not `isbits`, and `Base.mightalias` does not see the captured
+arrays, so do not write it into one of them.
+
 ## Behavior
 
 - **Axes and eltype.** The axes are the vectors' axes, and the eltype is the
